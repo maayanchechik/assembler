@@ -1,0 +1,9 @@
+assem
+a.out
+#*#
+*~
+*.ob
+*.ent
+*.ext
+*.o
+

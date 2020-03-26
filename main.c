@@ -11,10 +11,11 @@ int process_file(char* file_name){
   Info_node* info_head = NULL;
   
   if (first_pass(file_name, &IC, &DC, &symbol_head, &info_head)){
+    printf("error = 1\n");
     return 1;
   }
-  printf("\n\n\n**** %s **** \n\n\n", file_name);
-  if (second_pass(file_name, IC, DC, symbol_head, info_head)) { 
+  if (second_pass(file_name, IC, DC, symbol_head, info_head)) {
+    printf("error = 1\n");
     return 1;
   }
 

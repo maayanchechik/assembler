@@ -4,14 +4,18 @@
 enum commands {ENTRY, EXTERN, INSTRUCTIVE, DIRECTIVE, ILLEGAL_COMMAND_TYPE};
 
 enum opcode_enum {MOV, CMP, ADD, SUB, LEA, CLR, NOT, INC, DEC, JMP,
-		  BNE, RED, PRN, JSR, RTS, STOP, ILLEGAL_OPCODE};
+		  BNE, RED, PRN, JSR, RTS, STOP, NOT_INSTRUCTIVE};
 
-enum addressing_enum {ADDR_IMMEDIATE, ADDR_DIRECT,
-		      ADDR_REG_INDIRECT, ADDR_REG_DIRECT, ADDR_ILLEGAL};
+enum addressing_enum {ADDR_IMMEDIATE, /* 0 */
+		      ADDR_DIRECT, /* 1 */
+		      ADDR_REG_INDIRECT, /* 2 */
+		      ADDR_REG_DIRECT,  /* 3 */
+		      ADDR_ILLEGAL}; /* 4 */
 
-enum errors{ERR_SYMBOL_EMPTY, 
+enum errors{CORRECT,
+	    ERR_SYMBOL_EMPTY, 
 	    ERR_SYMBOL_ILLEGAL_CHAR,
-	    ERR_SYMBOL_SAVED_WORD,
+	    ERR_SYMBOL_RESERVED_WORD,
 	    ERR_SYMBOL_TOO_LONG,
 	    ERR_SYMBOL_THEN_BLANK,
 	    ERR_SYMBOL_THEN_ENTRY,
@@ -21,9 +25,11 @@ enum errors{ERR_SYMBOL_EMPTY,
 	    ERR_INSTR_EXCESSIVE_TEXT,
 	    ERR_INSTR_ENDS_WITH_COMMA,
 	    ERR_INSTR_ILLEGAL_OPCODE,
+	    ERR_INSTR_ILLEGAL_OPERAND_TYPE,
 	    ERR_STRING_ILLEGAL_QUOTATION,
 	    ERR_STRING_ILLEGAL_CHAR,
 	    ERR_DATA_EMPTY,
+	    ERR_DATA_BEGINS_WITH_COMMA,
 	    ERR_DATA_ENDS_WITH_COMMA,
 	    ERR_DATA_NO_COMMA,
 	    ERR_DATA_ILLEGAL_CHAR,
@@ -31,10 +37,13 @@ enum errors{ERR_SYMBOL_EMPTY,
 	    ERR_DATA_OUT_OF_RANGE,
 	    ERR_COMMAND_UNKNOWN,
 	    ERR_LINE_TOO_LONG,
-	    ERR_INSTR_LEA_ORIGIN_NOT_DIRECT,
-	    ERR_INSTR_ILLEGAL_REG_INDIRECT,
+	    ERR_INSTR_LEA_SOURCE_NOT_DIRECT,
+	    ERR_INSTR_ILLEGAL_REG_DIRECT,
 	    ERR_UNKNOWN_ENTRY_SYMBOL,
+	    ERR_UNKNOWN_SYMBOL,
 	    ERR_EXTERNAL_ENTRY_SYMBOL,
+	    ERR_NO_BLANK_AFTER_LABEL,
+	    ERR_REPEATING_SYMBOL,
 	    ERR_UNKNOWN};
 
 
@@ -54,6 +63,7 @@ int starts_with(char* str, char* wanted);
 int is_instructive(char *str);
 int is_directive(char* line_buf);
 int has_label(char** str, char** label);
+int is_reg(char* token);
 int symbol_is_illegal(char* symbol);
 int extract_addr(char* arg);
 int extract_command(char* command);

@@ -1,4 +1,5 @@
 #include "lists.h"
+#include "utilities.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -43,25 +44,31 @@ Symbol_node* create_symbol(char* symbol_name, int address, int is_before_directi
 }
 
 /* This function receives a symbol tables head and a new symbols info.
-   If the symbole is already in the table, the function returns an error.
-   Otherwise, the function appends the symbol to the end of the table.*/
-void append_symbol(Symbol_node** head, char* symbol_name, int address,
+   If the symbole is already in the table, the function returns an
+   error.  Otherwise, the function appends the symbol to the end of
+   the table and returns 0.*/
+int append_symbol(Symbol_node** head, char* symbol_name, int address,
 		   int is_before_directive, int is_external){
   Symbol_node* ptr;
   Symbol_node* new_symbol = create_symbol(symbol_name, address, is_before_directive, is_external);
   ptr = *head;
   if(*head == NULL){
     *head = new_symbol;
-    return;
+    return 0;
   }
   while(ptr->next!=NULL){
-    if(!strcmp(ptr->symbol_name,symbol_name)){
-      printf("Error: the symbol %s appears in the symbol table multipule times.", symbol_name);
+    if(!strcmp((ptr->symbol_name),symbol_name)){
       free(new_symbol);
+      return ERR_REPEATING_SYMBOL;
     }
     ptr = ptr->next;
   }
+  if(!strcmp((ptr->symbol_name),symbol_name)){
+    free(new_symbol);
+    return ERR_REPEATING_SYMBOL;
+  }
   ptr->next = new_symbol;
+  return 0;
 }
 
 

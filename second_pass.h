@@ -7,10 +7,9 @@
 
 int second_pass(char *filename, int IC, int DC,
 		Symbol_node* symbol_head, Info_node* info_head);
-
 int open_all_files(char* filename, FILE** fp, FILE** fp_ob,
-		   FILE** fp_ent, FILE** fp_ext);
-
+		   FILE** fp_ent, FILE** fp_ext, char** filename_ob,
+		   char** filename_ent, char** filename_ext);
 int extract_command(char* command);
 int second_process_line(char* line_buf, Symbol_node* symbol_head, FILE* fp_ob,
 			FILE* fp_ent, FILE* fp_ext, int line_num, int* current_ob_line);

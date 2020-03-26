@@ -9,7 +9,7 @@ int first_pass(char * filename, int* IC, int* DC, Symbol_node** symbol_table,
 	       Info_node** info_table);
 int process_line(char* line_buf, int* IC, int* DC, Symbol_node** symbol_table,
 		 Info_node** info_table, int line_num);
-int handle_entry(int line_has_label, int line_num);
+int handle_entry(int line_has_label, int line_num, char* line_buf);
 int handle_extern(int line_has_lable, int line_num, char* line_buf, int* DC,
 		  Symbol_node** symbol_table);
 int  handle_instructive(int line_has_lable, int line_num, char* instruction,

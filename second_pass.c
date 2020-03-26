@@ -7,60 +7,68 @@
 #include <stdlib.h>
 #include <string.h>
 
-int open_all_files(char* filename, FILE** fp, FILE** fp_ob,
-		   FILE** fp_ent, FILE** fp_ext){
-
-  char *duplicate_filename;
-  duplicate_filename = (char *) malloc(strlen(filename)+3);
-
+int open_one_file(char* prefix, char** file_out, const char* suffix,
+		  const char* permission, FILE **fp) {
   
-  strcpy(duplicate_filename, filename);
-  (*fp) = fopen(strcat(duplicate_filename, ".as"), "r");
+  /* First, build the specific filename from prefix and suffix */
+  (*file_out) = (char *) malloc(strlen(prefix) + strlen(suffix));
+  if (*file_out == 0) {
+    printf("Failed allocating memory fo file name %s\n", suffix);
+    return 1;
+  }
+  strcpy((*file_out), prefix);
+  strcat((*file_out), suffix);
+
+  (*fp) = fopen((*file_out), permission);
   if ((*fp) == NULL){
-    printf("Error: the file %s.as cannot be opened for writing.\n", filename);
-    return 1;
-  }
-  
-  strcpy(duplicate_filename, filename);
-  (*fp_ob) = fopen(strcat(duplicate_filename, ".ob"), "w");
-  if ((*fp_ob) == NULL){
-    printf("Error: the file %s.ob cannot be opened for writing.\n", filename);
-    return 1;
-  }
-
-  strcpy(duplicate_filename, filename);  
-  (*fp_ent) = fopen(strcat(duplicate_filename, ".ent"), "w");
-  if ((*fp_ent) == NULL){
-    printf("Error: the file %s.ent cannot be opened for writing.\n", filename);
-    return 1;
-  }
-
-  strcpy(duplicate_filename, filename);
-  (*fp_ext) = fopen(strcat(duplicate_filename, ".ext"), "w");
-  if ((*fp_ext) == NULL){
-    printf("Error: the file %s.ent cannot be opened for writing.\n", filename);
+    printf("Error: the file %s%s cannot be opened for %s.\n",
+	   prefix, suffix, permission);
     return 1;
   }
   return 0;
 }
 
 
-int second_pass(char* filename, int IC, int DC, Symbol_node* symbol_head, Info_node* info_head){
+int open_all_files(char* prefix, FILE** fp_as, FILE** fp_ob,
+		   FILE** fp_ent, FILE** fp_ext, char** filename_ob,
+		   char** filename_ent, char** filename_ext){
+  /* It is important to dynamically allocate memory for the filenames
+     because strcat does not allocate memory. */
+  char* filename_as;
+  if (open_one_file(prefix, &filename_as, ".as", "r", fp_as)) {
+    return 1;
+  }
+  if (open_one_file(prefix, filename_ob, ".ob", "w", fp_ob)) {
+    return 1;
+  }
+  if (open_one_file(prefix, filename_ent, ".ent", "w", fp_ent)) {
+    return 1;
+  }
+  if (open_one_file(prefix, filename_ext, ".ext", "w", fp_ext)) {
+    return 1;
+  } 
+  return 0;
+}
+
+
+int second_pass(char* prefix, int IC, int DC, Symbol_node* symbol_head, Info_node* info_head){
   char* line_buf = NULL;
   size_t line_buf_size = 0;
   int line_size = 1;
   int line_num = 1;
   int current_ob_line = 100;
-  int error;
-
+  int error = 0;
+  char* filename_ob;
+  char* filename_ent;
+  char* filename_ext;
   FILE* fp;
   FILE* fp_ob;
   FILE* fp_ent;
   FILE* fp_ext;
-  error = open_all_files(filename, &fp, &fp_ob, &fp_ent, &fp_ext);
-  if (error > 0) {
+  error = open_all_files(prefix, &fp, &fp_ob, &fp_ent, &fp_ext, &filename_ob,
+			 &filename_ent, &filename_ext);
+  if (error > 0)
     return 1;
-  }
 
 
   fprintf(fp_ob,"   %d %d\n",IC-100,DC);
@@ -74,9 +82,8 @@ int second_pass(char* filename, int IC, int DC, Symbol_node* symbol_head, Info_n
       printf("\nsp: line_num = %d, line_size = %d, line_buf = %s",
 	     line_num, line_size, line_buf);
 
-      if (second_process_line(line_buf, symbol_head, fp_ob, fp_ent,
-			      fp_ext, line_num, &current_ob_line))
-	return 1;
+      error = second_process_line(line_buf, symbol_head, fp_ob, fp_ent,
+					   fp_ext, line_num, &current_ob_line) || error;
     }
     line_num++;
   }
@@ -86,8 +93,17 @@ int second_pass(char* filename, int IC, int DC, Symbol_node* symbol_head, Info_n
   fclose(fp);
   fclose(fp_ob);
   fclose(fp_ent);
-  fclose(fp_ext);  
-  return 0;
+  fclose(fp_ext);
+
+  if (error){
+    if (remove(filename_ob))
+      printf("Unable to delete the file ps.ob\n");
+    if (remove(filename_ent))
+      printf("Unable to delete the file ps.ent\n");
+    if (remove(filename_ext))
+      printf("Unable to delete the file ps.ext\n");
+  }
+  return error;
 }
 
 
@@ -161,7 +177,7 @@ int second_handle_instructive(int line_num, char* instruction,
 			      Symbol_node* symbol_head,
 			      int* current_ob_line) { 
   int error = 0;
-  int opcode = is_instructive(instruction)-1;
+  int opcode = is_instructive(instruction);
   char* arg1;
   char* arg2;
   int addr1 = -1;
@@ -196,7 +212,7 @@ int second_handle_instructive(int line_num, char* instruction,
   if (addr1 != -1){
     if (addr2 == -1)
       is_destination = 1;
-    error = error || incode_arg(&memory_word2, arg1, addr1, symbol_head,
+    error = incode_arg(&memory_word2, arg1, addr1, symbol_head,
 				line_num, is_destination, fp_ext, *current_ob_line);
     if (!both_reg)
       memory_word_to_fp_ob(memory_word2, fp_ob, current_ob_line);
@@ -205,12 +221,12 @@ int second_handle_instructive(int line_num, char* instruction,
   if (addr2 != -1){
     is_destination = 1;
     if (!both_reg){
-    error = error || incode_arg(&memory_word3, arg2, addr2, symbol_head,
-				line_num, is_destination, fp_ext, *current_ob_line);
+    error = incode_arg(&memory_word3, arg2, addr2, symbol_head, line_num,
+		       is_destination, fp_ext, *current_ob_line) || error;
     memory_word_to_fp_ob(memory_word3, fp_ob, current_ob_line);
     }else{
-      error = error || incode_arg(&memory_word2, arg2, addr2, symbol_head,
-				  line_num, is_destination, fp_ext, *current_ob_line);
+      error = incode_arg(&memory_word2, arg2, addr2, symbol_head, line_num,
+			 is_destination, fp_ext, *current_ob_line) || error;
       memory_word_to_fp_ob(memory_word2, fp_ob, current_ob_line);      
     }
   }
@@ -281,8 +297,10 @@ int incode_arg(int *memory_word,char* arg,int addr,
   case ADDR_DIRECT:
     ptr = find_symbol(symbol_head, arg);
     if (ptr == NULL){
-      printf("incode_arg: Error: line#%d %s",line_num, error_message(ERR_UNKNOWN_ENTRY_SYMBOL));
+      printf("incode_arg: Error: line#%d the symbol [%s] is %s",line_num,
+	     arg, error_message(ERR_UNKNOWN_SYMBOL));
       error = ERR_UNKNOWN_ENTRY_SYMBOL;
+      break;
     }
     num = get_symbols_address(ptr);
     /* put num into bits 3-14 */

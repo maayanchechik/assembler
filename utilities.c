@@ -1,19 +1,16 @@
 #define _GNU_SOURCE
 
-#include "lists.h"
 #include "utilities.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#define TRUE 1
-#define FALSE 0
 #define OPCODE_LENGTH 16
 #define MAX_12_BITS 4095
 #define MIN_12_BITS -4096
 #define MAX_15_BITS 32767
 #define MIN_15_BITS -32768
-
+#define MAX_SYMBOL 31
 /************************************************************************
                               String utilities 
  ************************************************************************/
@@ -86,14 +83,14 @@ int not_a_number(char* str) {
 int string_ends_with_comma_and_blanks(char* s) {
   int i;
   if (s == NULL) 
-    return 0;
+    return FALSE;
   for (i=strlen(s)-1; i>=0 ; i--) {
     if (s[i] == ',') 
-      return 1;
+      return TRUE;
     if (s[i] != ' ' && s[i] != '\t')
-      return 0;
+      return FALSE;
   }
-  return 0;
+  return FALSE;
 }
 
 /* This function receives a pointer to a token and removes all blanks
@@ -128,7 +125,8 @@ void remove_beginning_blank_from_token(char** token) {
 
 /* Returns TRUE if the first char of the received string is ';',
    otherwise FALSE.*/
-int is_comment(char* s) { 
+int is_comment(char* s) {
+  remove_blank_from_token(&s);
   return (s[0]==';');
 }
 
@@ -137,7 +135,7 @@ int is_comment(char* s) {
 int index_not_blank(char* str) { 
   int i;
   /* The string is not supposed to be only blanks. */
-  for(i = 0; (str[i] == ' ')||(str[i] == '\t'); i++);
+  for (i = 0; (str[i] == ' ')||(str[i] == '\t'); i++);
   return i;
 }
 
@@ -153,7 +151,7 @@ int extract_command(char* command) {
     return ENTRY;
   if (!strcmp(command, ".extern"))
     return EXTERN;
-  if (is_instructive(command) != NOT_INSTRUCTIVE)
+  if (which_instructive(command) != NOT_INSTRUCTIVE)
     return INSTRUCTIVE;
   if ((!strcmp(command, ".data")) || (!strcmp(command,".string")))
     return DIRECTIVE;
@@ -163,19 +161,18 @@ int extract_command(char* command) {
 /* This function receives a command string. If the command is one of
    the instructive commands, returns the opcode of the command
    according to the enum opcode. Otherwise, returns NOT_INSTRUCTIVE.*/
-int is_instructive(char *str) { 
+int which_instructive(char *str) { 
   char* instructions[OPCODE_LENGTH] = {"mov", "cmp", "add", "sub", "lea", "clr",
 			    "not", "inc", "dec", "jmp", "bne", "red",
 			    "prn", "jsr", "rts", "stop"};
   int i;
-  for(i = 0; i<OPCODE_LENGTH; i++) { 
+  for (i = 0; i<OPCODE_LENGTH; i++) { 
     if (!strcmp(str,instructions[i])) { 
       return i;
     }
   }
   return NOT_INSTRUCTIVE;
 }
-
 
 /* If there is a ':' then the function checks whether there is the
    required blank after the ':'. If not, the function returns an
@@ -184,34 +181,37 @@ int is_instructive(char *str) {
    before the ':' without the beggining blanks. */
 int has_label(char** str, char** label) { 
   int i;
-  for(i = 0; (*str)[i] != '\0'; i++) { 
+  for (i = 0; (*str)[i] != '\0'; i++) { 
     if ((*str)[i] == ':') {
       /* (*str)[i+1] is always safe because at the end is '\0'*/
       if((*str)[i+1] != ' ' && (*str)[i+1] != '\t')
 	return ERR_NO_BLANK_AFTER_LABEL;
       (*label) = strsep(str, ":");
       remove_beginning_blank_from_token(label);
-      return 1;
+      return TRUE;
     }
   }
-  return 0;
+  return FALSE;
 }
 
-int is_reg(char* token){
-  if (token == NULL || strlen(token) < 2 ){
+/* This function returns TRUE if the received token is a valid
+   register name, otherwise returns FALSE*/
+int is_reg(char* token) {
+  if (token == NULL || strlen(token) < 2 ) {
     return 0;
   }
   if (token[0] == 'r' && token[1] >= '0' && token[1] <= '7'
-      && (token[2] == ' ' || token[2] == '\t' || token[2] == '\0') ){
-    return 1;
+      && (token[2] == ' ' || token[2] == '\t' || token[2] == '\0') ) {
+    return TRUE;
   }
-  return 0;
+  return FALSE;
 }
 
+/* This function returns the error code for the received symbol (if
+   the symbol is valid the error code is NO_ERROR)*/
 int symbol_is_illegal(char* symbol) { 
   int i;
-  printf("symbol_is_illegal: symbol = [%s]\n", symbol);
-  if (string_blank_or_empty(symbol)){
+  if (string_blank_or_empty(symbol)) {
     return ERR_SYMBOL_EMPTY;
   }
   for (i = 0; symbol[i] != '\0'; i++) {
@@ -219,51 +219,57 @@ int symbol_is_illegal(char* symbol) {
       return ERR_SYMBOL_ILLEGAL_CHAR;
     }
   }
-  if (i>31){
+  if (i>MAX_SYMBOL+1) {
     return ERR_SYMBOL_TOO_LONG;
   }
   if ((!strcmp(symbol, "data")) || (!strcmp(symbol, "string")) ||
-      (is_instructive(symbol)!=NOT_INSTRUCTIVE) || is_reg(symbol))
+      (which_instructive(symbol)!=NOT_INSTRUCTIVE) || is_reg(symbol))
     return ERR_SYMBOL_RESERVED_WORD;
-  return 0;
+  return NO_ERROR;
 }
 
-
+/* This function receives an string argument and returns it's enum
+   addressing type accordingly. If the argument is not valid for any
+   addresing type the enum ADDR_ILLEGAL will be returned.*/
 int extract_addr(char* arg) {
-  int temp;
   if (legal_immediate_addr(arg)) { 
     return ADDR_IMMEDIATE;
   }
-  if (arg[0] == '*'){
-    if(is_reg(arg+1))
+  if (arg[0] == '*') {
+    if (is_reg(arg+1))
        return ADDR_REG_INDIRECT;
   }
   if (is_reg(arg)) { 
     return ADDR_REG_DIRECT;
   }
-  temp = symbol_is_illegal(arg);
-  printf("symbol_is_illegal(arg) = %d\n", temp);
-  if (!temp){
+  if (!symbol_is_illegal(arg)) {
     return ADDR_DIRECT;
   }
   return ADDR_ILLEGAL;
 }
 
+/* This function receives a string argument and returns TRUE if the
+   argument is valid for the immediate addressing type, otherwise,
+   returns FALSE.*/
 int legal_immediate_addr(char* arg) { 
   int num;
   char* non_digit;
   if (arg[0] != '#')
-    return 0;
+    return FALSE;
   arg++;
   if (not_a_number(arg)) {
-    return 0;
+    return FALSE;
   }
   num = strtol(arg, &non_digit, 10);
-  if (num>MAX_12_BITS || num< MIN_12_BITS)
-    return 0;
-  return 1;
+  if (num > MAX_12_BITS || num < MIN_12_BITS)
+    return FALSE;
+  return TRUE;
 }
 
+/* This function receives the line_buffer, which should include one
+   argument, and a pointer to the string arg1 which is not
+   inisialized. It inisializes arg1 to include the argument and
+   returns the arguments according error code.*/
 int extract_one_argument(char* line_buf, char** arg1) { 
   /* If the string ends with a comma it is an error that the following
      loop will not catch it becuase it seperates with the commas.*/
@@ -275,9 +281,14 @@ int extract_one_argument(char* line_buf, char** arg1) {
   if (!string_blank_or_empty(line_buf))
     return ERR_INSTR_EXCESSIVE_TEXT;
   remove_blank_from_token(arg1);
-  return 0;
+  return NO_ERROR;
 }
 
+/* This function receives the line_buffer, which should include two
+   arguments, and two pointers to the string arg1 and arg2 which are not
+   inisialized. It inisializes arg1 and arg2 to include the arguments
+   in the line_buffer and returns the arguments according error
+   code.*/
 int extract_two_arguments(char* line_buf, char** arg1, char** arg2) { 
   /* If the string ends with a comma it is an error that the following
      loop will not catch it becuase it seperates with the commas.*/
@@ -296,13 +307,19 @@ int extract_two_arguments(char* line_buf, char** arg1, char** arg2) {
   
   remove_blank_from_token(arg1);
   remove_blank_from_token(arg2);
-  return 0;
+  return NO_ERROR;
 }
 
+/* This function receives an instructive command opcode, the
+   line_buffer, which should include the instruction's appropriate
+   amount and type of arguments, and a pointer to the length of this
+   lines memory. The function processes the line_buf, calculates and
+   updates length. It returns the appropriate error code for
+   line_buf.*/
 int compute_required_length(int opcode, char* line_buf, int *length) {
   int addr1, addr2;  
   char *arg1, *arg2;
-  int error = 0;
+  int error = NO_ERROR;
   switch (opcode) { 
   case MOV:
   case CMP:    
@@ -314,7 +331,7 @@ int compute_required_length(int opcode, char* line_buf, int *length) {
       addr1 = extract_addr(arg1);
       addr2 = extract_addr(arg2);
 
-      if(addr1 == ADDR_ILLEGAL || addr2 == ADDR_ILLEGAL)
+      if (addr1 == ADDR_ILLEGAL || addr2 == ADDR_ILLEGAL)
 	error = ERR_INSTR_ILLEGAL_OPERAND_TYPE;
       if (opcode!=CMP && addr2 == ADDR_IMMEDIATE)
 	error = ERR_INSTR_DESTINATION_IMMEDIATE;
@@ -341,11 +358,12 @@ int compute_required_length(int opcode, char* line_buf, int *length) {
     if (!error) { 
       arg2 = NULL;
       addr1 = extract_addr(arg1);
-      if(addr1 == ADDR_ILLEGAL)
+      if (addr1 == ADDR_ILLEGAL)
 	error = ERR_INSTR_ILLEGAL_OPERAND_TYPE;
       if (opcode!=PRN && addr1 == ADDR_IMMEDIATE)
 	error = ERR_INSTR_DESTINATION_IMMEDIATE;
-      if (((opcode == JMP)||(opcode == BNE)||(opcode == JSR))&&(addr1 == ADDR_REG_DIRECT))
+      if (((opcode == JMP) || (opcode == BNE) || (opcode == JSR)) &&
+	  (addr1 == ADDR_REG_DIRECT))
 	error = ERR_INSTR_ILLEGAL_REG_DIRECT;
       addr2 = ADDR_ILLEGAL;
       *length = 2;
@@ -366,12 +384,18 @@ int compute_required_length(int opcode, char* line_buf, int *length) {
   return error;    
 }
 
+/* This function receives the line_buffer, which should include the
+   arguments passed to the .data command, a pointer to DC, which is
+   the data counter, and a pointer to the head of the info list. The
+   function processes the line_buf, if there are errors in the
+   arguments the function returns the apropriate error code, Other
+   wise the function also appends the arguments to the info table.*/
 int update_data_info(char* line_buf, int* DC, Info_node** info_table) { 
   char* token; 
   char* rest = line_buf; 
   int num;
   char *non_digit;
-  int error = 0;
+  int error = NO_ERROR;
   /* If the string is empty then there is no data passed to .data*/
   if (string_blank_or_empty(line_buf)) { 
     error = ERR_DATA_EMPTY;
@@ -386,7 +410,7 @@ int update_data_info(char* line_buf, int* DC, Info_node** info_table) {
   /* If the string starts with a comma the following loop will
      mistakingly identify the error as a double comma.*/
   remove_blank_from_token(&rest);
-  if (rest[0] == ','){
+  if (rest[0] == ',') {
     error = ERR_DATA_BEGINS_WITH_COMMA;
     return error;
   }
@@ -415,44 +439,60 @@ int update_data_info(char* line_buf, int* DC, Info_node** info_table) {
       error = ERR_DATA_OUT_OF_RANGE;
       return error;
     }
-
-    append_info(info_table, (*DC), num);
+    if ((error = append_info(info_table, (*DC), num))) {
+      return error;
+    }
+    
     (*DC)++;
   }
-  
-  return 0;
+  return NO_ERROR;
 }
 
+/* This function receives the line_buffer, which should include a
+   string passed to the .string command, a pointer to DC, which is the
+   data counter, and a pointer to the head of the info list. The
+   function processes the line_buf, if there are errors in the
+   arguments the function returns the apropriate error code, Other
+   wise the function also appends the arguments to the info table.*/
 int update_string_info(char* line_buf, int* DC, Info_node** info_table) { 
-  int i;
+  int i, error;
   remove_blank_from_token(&line_buf);
   if (illegal_quotation_marks(line_buf)) { 
     return ERR_STRING_ILLEGAL_QUOTATION;
   }
-  for(i = 1; line_buf[i] != '"'; i++, (*DC)++) { 
+  for (i = 1; line_buf[i] != '"'; i++, (*DC)++) { 
     if (line_buf[i]<32 && line_buf[i]!='\t')
       return ERR_STRING_ILLEGAL_CHAR;
-    append_info(info_table, (*DC), line_buf[i]);
+    if ((error = append_info(info_table, (*DC), line_buf[i]))) {
+      return error;
+    }
   }
-  append_info(info_table, (*DC), 0);
+  if ((error = append_info(info_table, (*DC), 0))) {
+    return error;
+  }
   (*DC)++;
-  return 0;
+  return NO_ERROR;
 }
 
+/* This function receives the line_buffer, which should include a
+   string passed to the .string command, with no surrounding
+   blanks. The returns TRUE if the quotation marks of the string in
+   line_buf are invalid, otherwise returns FALSE.*/
 int illegal_quotation_marks(char* line_buf) { 
   int index_last = strlen(line_buf)-1;
   if (line_buf[0] != '"')
-    return 1;
+    return TRUE;
   if (line_buf[index_last]!='"')
-    return 1;
-  return 0;
+    return TRUE;
+  return FALSE;
 }
 
-
+/* This function receives an error code and returns a matching error
+   message.*/
 char* error_message(int error_code) { 
   char* message;
   switch(error_code) {
-  case CORRECT:
+  case NO_ERROR:
     message = "there is no error!\n.";
     break;
   case ERR_SYMBOL_EMPTY:
@@ -480,7 +520,7 @@ char* error_message(int error_code) {
     message = "there is an empty argument.\n";
     break;
   case ERR_INSTR_DESTINATION_IMMEDIATE:
-    message = "the distination argument is of an immediate type.\n";
+    message = "the destination argument is of an immediate type.\n";
     break;
   case ERR_INSTR_EXCESSIVE_TEXT:
     message = "there is excessive text after the arguments.\n";
@@ -495,7 +535,8 @@ char* error_message(int error_code) {
     message = "a passed operand is not valid for any type.\n";
     break;    
   case ERR_STRING_ILLEGAL_QUOTATION:
-    message = "the string given to [.string] has illegal quotation\n marks (there should be two quotation marks surrounding the given string).\n";
+    message = "invalie quotation marks in the string given to [.string].\n"
+       "There should be two quotation marks surrounding the given string.\n";
     break;
   case ERR_STRING_ILLEGAL_CHAR:
     message = "the string includes an illegal character.\n";
@@ -528,7 +569,8 @@ char* error_message(int error_code) {
     message = "the command line is too long(over 80 characters).\n";
     break;
   case ERR_INSTR_LEA_SOURCE_NOT_DIRECT:
-    message = "the source argument of the instructive command lea is not of direct type.\n";
+    message = "the source argument of the instructive command lea "
+      "is not of direct type.\n";
     break;
   case ERR_INSTR_ILLEGAL_REG_DIRECT:
     message = "the argument is a direct resiter.\n";
@@ -548,6 +590,9 @@ char* error_message(int error_code) {
   case ERR_REPEATING_SYMBOL:
     message = "this symbol is already defined.\n";
     break;
+  case ERR_MALLOC_FAILED:
+    message = "Malloc returned NULL.\n";
+    break;    
   default:
     message = "error unknown.\n";
   }

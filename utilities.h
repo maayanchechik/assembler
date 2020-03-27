@@ -1,18 +1,30 @@
 #ifndef __UTILITIES_H__
 #define __UTILITIES_H__
 
+#include "info_list.h"
+#include "symbol_list.h"
+
+#define TRUE 1
+#define FALSE 0
+#define UNKNOWN -1
+
+/* This is an enum of the command types*/
 enum commands {ENTRY, EXTERN, INSTRUCTIVE, DIRECTIVE, ILLEGAL_COMMAND_TYPE};
 
+/* This is an enum of the opcodes for each instructive command*/
 enum opcode_enum {MOV, CMP, ADD, SUB, LEA, CLR, NOT, INC, DEC, JMP,
 		  BNE, RED, PRN, JSR, RTS, STOP, NOT_INSTRUCTIVE};
 
-enum addressing_enum {ADDR_IMMEDIATE, /* 0 */
-		      ADDR_DIRECT, /* 1 */
-		      ADDR_REG_INDIRECT, /* 2 */
-		      ADDR_REG_DIRECT,  /* 3 */
-		      ADDR_ILLEGAL}; /* 4 */
+/* This is an enum of the addressing types*/
+enum addressing_enum {ADDR_IMMEDIATE,
+		      ADDR_DIRECT,
+		      ADDR_REG_INDIRECT,
+		      ADDR_REG_DIRECT,
+		      ADDR_ILLEGAL};
 
-enum errors{CORRECT,
+/* This is the enum of the error codes. */
+enum errors{NO_ERROR, /* == 0, therefore an error flag can be checked
+			 as a boolean for errors.*/
 	    ERR_SYMBOL_EMPTY, 
 	    ERR_SYMBOL_ILLEGAL_CHAR,
 	    ERR_SYMBOL_RESERVED_WORD,
@@ -44,8 +56,9 @@ enum errors{CORRECT,
 	    ERR_EXTERNAL_ENTRY_SYMBOL,
 	    ERR_NO_BLANK_AFTER_LABEL,
 	    ERR_REPEATING_SYMBOL,
+	    ERR_FILE,
+	    ERR_MALLOC_FAILED,	    
 	    ERR_UNKNOWN};
-
 
 int not_a_digit(char c);
 int not_numeric(char c);
@@ -60,7 +73,7 @@ void remove_beginning_blank_from_token(char** token);
 int is_comment(char* s);
 int index_not_blank(char* str);
 int starts_with(char* str, char* wanted);
-int is_instructive(char *str);
+int which_instructive(char *str);
 int is_directive(char* line_buf);
 int has_label(char** str, char** label);
 int is_reg(char* token);

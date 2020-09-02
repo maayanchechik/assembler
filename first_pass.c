@@ -19,16 +19,11 @@ int first_pass(char* prefix, int* IC, int* DC, Symbol_node** symbol_table,
   int line_size = 1;
   int error = NO_ERROR;
   int line_num = 1;
-  FILE * fp;
-  char* filename_as = (char *) malloc(strlen(prefix)+3);
+  FILE * fp_as;
+  char* filename_as;
 
-  /* open the file */
-  strcpy(filename_as, prefix);
-  strcat(filename_as, ".as");
-  fp = fopen(filename_as, "r");
-  if (fp == NULL) {
-    printf("Error: the file %s cannot be opened for writing.\n", filename_as);
-    return ERR_FILE;
+  if ((error = open_one_file(prefix, &filename_as, ".as", "r", &fp_as))) { 
+    return error;
   }
   free(filename_as);
 
@@ -36,24 +31,19 @@ int first_pass(char* prefix, int* IC, int* DC, Symbol_node** symbol_table,
   (*DC) = 0;
   (*IC) = 100; 
   while (line_size>=0) {
-    line_size = getline(&line_buf, &line_buf_size, fp);
+    line_size = getline(&line_buf, &line_buf_size, fp_as);
     if ((line_size>0) && (!string_blank_or_empty(line_buf))
 	&& (!is_comment(line_buf))&&line_buf[0]!='\n') {
-      printf("\nFirst_pass line #%d is: %s",line_num, line_buf);
       if (line_buf[line_size-1] == '\n') {
 	line_buf[line_size-1] = '\0';
       }
       error = process_line(line_buf, IC, DC, symbol_table, info_table,
 			   line_num) || error;
-      printf("First_pass IC = %d, DC = %d\n", *IC, *DC);
     }
     line_num++;
   }
-  printf("\n");
   increase_symbol_table_addresses(*symbol_table, *IC);
-  print_symbol_list(*symbol_table);
-  print_info_list(*info_table);
-  fclose(fp);
+  fclose(fp_as);
   return error;
 }
 
@@ -71,8 +61,7 @@ int process_line(char* line_buf, int* IC, int* DC, Symbol_node** symbol_table,
   int command_type;
   int error = NO_ERROR;
   if (strlen(line_buf)>80) {
-    printf("process_line: Error: line #%d, %s", line_num,
-	   error_message(ERR_LINE_TOO_LONG));
+    printf("Error: line #%d, %s", line_num, error_message(ERR_LINE_TOO_LONG));
     return ERR_LINE_TOO_LONG;
   }
   
@@ -81,17 +70,17 @@ int process_line(char* line_buf, int* IC, int* DC, Symbol_node** symbol_table,
   line_has_label = has_label(&line_buf, &label);
   if (line_has_label) {
     if (line_has_label == ERR_NO_BLANK_AFTER_LABEL) {
-      printf("process_line: Error: line #%d, illegal label: %s", line_num,
+      printf("Error: line #%d, illegal label: %s", line_num,
 	     error_message(ERR_NO_BLANK_AFTER_LABEL));
       return ERR_NO_BLANK_AFTER_LABEL;
     }
     if ((error = symbol_is_illegal(label))) {
-      printf("process_line: Error: line #%d, illegal label: %s", line_num,
+      printf("Error: line #%d, illegal label: %s", line_num,
 	     error_message(error));
       return error;
     }
     if (string_blank_or_empty(line_buf)) {
-      printf("process_line: Error: line #%d label is not followed by code.\n",
+      printf("Error: line #%d label is not followed by code.\n",
 	     line_num);
       return ERR_SYMBOL_THEN_BLANK;
     }
@@ -118,7 +107,7 @@ int process_line(char* line_buf, int* IC, int* DC, Symbol_node** symbol_table,
     break;   
   default:
     /* Otherwise, the first word is unfamiliar*/
-    printf("process_line: Error: line #%d starts with an unknown word %s\n",
+    printf("Error: line #%d starts with an unknown word %s\n",
 	   line_num, command);
     error = ERR_COMMAND_UNKNOWN;
   }
@@ -134,14 +123,12 @@ int process_line(char* line_buf, int* IC, int* DC, Symbol_node** symbol_table,
 int handle_entry(int line_has_label, int line_num, char* line_buf) {
   int error = NO_ERROR;
   if (line_has_label) {
-    printf("handle_entry: Error: line #%d has '.entry' after a label\n",
-	   line_num);
+    printf("Error: line #%d has '.entry' after a label\n", line_num);
     return ERR_SYMBOL_THEN_ENTRY;
   }
   remove_blank_from_token(&line_buf);
   if ( (error = symbol_is_illegal(line_buf)) ) {
-    printf("handle_entry: Error: line #%d, symbol = [%s]- %s\n",
-	   line_num, line_buf,
+    printf("Error: line #%d, symbol = [%s]- %s\n", line_num, line_buf,
 	   error_message(error));
     return error;
   }
@@ -160,18 +147,24 @@ int handle_extern(int line_has_label, int line_num, char* line_buf,
 		  Symbol_node** symbol_table) {
   int error = NO_ERROR;
   if (line_has_label) {
-    printf("handle_extern: Error: line #%d has '.extern' after a label\n",
+    printf("Error: line #%d has '.extern' after a label\n",
 	   line_num);
     error = ERR_SYMBOL_THEN_EXTERN;
   }
   remove_blank_from_token(&line_buf);
   if ((error = symbol_is_illegal(line_buf))) {
-    printf("handle_extern: Error: line #%d, the symbol [%s] is illegal.\n",
+    printf("Error: line #%d, the symbol [%s] is illegal.\n",
 	   line_num, line_buf);
     return error;
   }
   if ((error = append_symbol(symbol_table, line_buf, 0, UNKNOWN, TRUE))) {
-    printf("handle_extern: Error: line #%d, symbol = [%s], %s",
+    /* A duplicate symbol is encountered, but if the symbol is
+       external, there is no reason to define the symbol again or
+       creat an error. */
+    if((error = ERR_REPEATING_EXTERNAL_SYMBOL)){
+      return NO_ERROR;
+    }
+    printf("Error: line #%d, symbol = [%s], %s",
 	   line_num, line_buf, error_message(error));
   }    
   return error;
@@ -196,19 +189,18 @@ int handle_instructive(int line_has_label, int line_num, char* instruction,
   int error;
   if (line_has_label) {
     if ((error = append_symbol(symbol_table, label, *IC, FALSE, FALSE))) {
-      printf("handle_instructive: Error: line #%d, label = [%s], %s",
-	     line_num, label,
+      printf("Error: line #%d, label = [%s], %s", line_num, label,
 	     error_message(error));
       return error;
     }    
   }
   if((error = compute_required_length(opcode, line_buf, &length))) { 
-    printf("handle_instructive: Error: line #%d, illegal instruction: %s",
-	   line_num, error_message(error));
+    printf("Error: line #%d, illegal instruction: %s", line_num,
+	   error_message(error));
     return error;
   }
   (*IC) += length;
-  return 0;
+  return NO_ERROR;
 }
 
 /* This function is called in case the current line's command is a
@@ -225,28 +217,27 @@ int handle_instructive(int line_has_label, int line_num, char* instruction,
 int handle_directive(int line_has_label, int line_num,  char* direction,
 		     char* line_buf, char* label, Symbol_node** symbol_table,
 		     Info_node** info_table, int* DC) { 
-  int error = 0;
+  int error = NO_ERROR;
   int is_data = (direction[1] == 'd');
   if (line_has_label) {
     if ((error = append_symbol(symbol_table, label, *DC, TRUE, FALSE))) {
-      printf("handle_directive: Error: line #%d, label = [%s], %s",
-	     line_num, label,
+      printf("Error: line #%d, label = [%s], %s", line_num, label,
 	     error_message(error));
       return error;
     }    
   }
   if (is_data) {
     if ((error = update_data_info(line_buf, DC, info_table))) {
-      printf("handle_directive: Error: line #%d, illegal directive: %s",
-	     line_num, error_message(error));
+      printf("Error: line #%d, illegal directive: %s", line_num,
+	     error_message(error));
       return error;
     }
   }else{
     if ((error = update_string_info(line_buf, DC, info_table))) {
-      printf("handle_directive: Error: line #%d, illegal directive: %s",
-	     line_num, error_message(error));
+      printf("Error: line #%d, illegal directive: %s", line_num,
+	     error_message(error));
       return error;
     }
   }
-  return 0;
+  return NO_ERROR;
 }

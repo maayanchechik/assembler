@@ -5,8 +5,8 @@
 #include <string.h>
 
 int process_file(char* file_name) {
-  int IC;
-  int DC;
+  int IC = 100;
+  int DC = 0;
   Symbol_node* symbol_head = NULL;
   Info_node* info_head = NULL;
   int error;
@@ -19,10 +19,8 @@ int process_file(char* file_name) {
 
   free_symbol_list(symbol_head);
   free_info_list(info_head);
-  printf("DBG process_file: IC = %d ,DC = %d\n", IC, DC);
   return NO_ERROR;
 }
-
 
 int main(int argc, char *argv[]) {
   int i, error;
@@ -31,14 +29,15 @@ int main(int argc, char *argv[]) {
     return 1;
   }
   for (i = 1; i<argc; i++) {
-    printf("Processing input file [%s].\n", argv[i]);
+    printf("Processing input file [%s]:\n", argv[i]);
     if ((error = process_file(argv[i]))) {
-      printf("\tFailed processing input file [%s.as].\n", argv[i]);
+      printf("\tEncountered errors while processing input file [%s.as].\n\n",
+	     argv[i]);
       if (error == ERR_MALLOC_FAILED) {
 	break;
       }
     } else {
-      printf("\tSuccessfully processed input file [%s].\n", argv[i]);
+      printf("\tSuccessfully processed input file [%s].\n\n", argv[i]);
     }
   }
   return 0;

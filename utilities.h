@@ -3,6 +3,7 @@
 
 #include "info_list.h"
 #include "symbol_list.h"
+#include <stdio.h>
 
 #define TRUE 1
 #define FALSE 0
@@ -56,10 +57,12 @@ enum errors{NO_ERROR, /* == 0, therefore an error flag can be checked
 	    ERR_EXTERNAL_ENTRY_SYMBOL,
 	    ERR_NO_BLANK_AFTER_LABEL,
 	    ERR_REPEATING_SYMBOL,
+	    ERR_REPEATING_EXTERNAL_SYMBOL,
 	    ERR_FILE,
 	    ERR_MALLOC_FAILED,	    
 	    ERR_UNKNOWN};
 
+/* String utilities */
 int not_a_digit(char c);
 int not_numeric(char c);
 int is_alpha_numeric(char c);
@@ -67,9 +70,14 @@ int not_a_number(char* str);
 int string_blank_or_empty(char* s);
 int token_has_blanks(char* str);
 int string_ends_with_comma_and_blanks(char* s);
-
 void remove_blank_from_token(char** token);
 void remove_beginning_blank_from_token(char** token);
+
+/* File utilities */
+int open_one_file(char* prefix, char** file_out, const char* suffix,
+		  const char* permission, FILE **fp);
+
+/* Assembler utilities */
 int is_comment(char* s);
 int index_not_blank(char* str);
 int starts_with(char* str, char* wanted);

@@ -10,33 +10,6 @@
 
 #define MEMORY_NUM_BITS 15
 
-/* This function receives a filename prefix, a pointer to an output
-   filename, the suffix, the permition and a pointer to a file
-   pointer. The function updates the file_out to start with the prefix
-   and end with the suffix. It also opens file_out and makes fp the
-   pointer to that file. The function returns the appropriate error
-   code.*/
-int open_one_file(char* prefix, char** file_out, const char* suffix,
-		  const char* permission, FILE **fp) {
-  
-  /* First, build the specific filename from prefix and suffix */
-  (*file_out) = (char *) malloc(strlen(prefix) + strlen(suffix));
-  if (*file_out == 0) {
-    printf("Failed allocating memory fo file name %s\n", suffix);
-    return ERR_FILE;
-  }
-  strcpy((*file_out), prefix);
-  strcat((*file_out), suffix);
-
-  (*fp) = fopen((*file_out), permission);
-  if ((*fp) == NULL) {
-    printf("Error: the file %s%s cannot be opened for %s.\n",
-	   prefix, suffix, permission);
-    return ERR_FILE;
-  }
-  return NO_ERROR;
-}
-
 /* This function receives a filename prefix, pointers to file pointers
    of the .ob, .ent and .ext files, and pointers to the filenames of
    the .ob, .ent and .ext files. It opens each file and updates their
@@ -50,6 +23,7 @@ int open_all_files(char* prefix, FILE** fp_as, FILE** fp_ob,
   if (open_one_file(prefix, &filename_as, ".as", "r", fp_as)) {
     return ERR_FILE;
   }
+  free(filename_as);
   if (open_one_file(prefix, filename_ob, ".ob", "w", fp_ob)) {
     return ERR_FILE;
   }
@@ -99,8 +73,6 @@ int second_pass(char* prefix, int IC, int DC, Symbol_node* symbol_head,
       if (line_buf[line_size-1] == '\n') {
 	line_buf[line_size-1] = '\0';
       }
-      printf("\nsp: line_num = %d, line_size = %d, line_buf = %s",
-	     line_num, line_size, line_buf);
 
       error = second_process_line(line_buf, symbol_head, fp_ob, fp_ent,
 				  fp_ext, line_num, &current_ob_line) || error;
@@ -118,11 +90,11 @@ int second_pass(char* prefix, int IC, int DC, Symbol_node* symbol_head,
 
   if (error) {
     if (remove(filename_ob))
-      printf("Unable to delete the file ps.ob\n");
+      printf("Error: unable to delete the file ps.ob\n");
     if (remove(filename_ent))
-      printf("Unable to delete the file ps.ent\n");
+      printf("Error: unable to delete the file ps.ent\n");
     if (remove(filename_ext))
-      printf("Unable to delete the file ps.ext\n");
+      printf("Error: unable to delete the file ps.ext\n");
   }
   return error;
 }
@@ -161,11 +133,10 @@ int second_process_line(char* line_buf, Symbol_node* symbol_head,
     break;   
   default:
     /* Otherwise, the first word is unfamiliar*/
-    printf("process_line: Error: line #%d starts with an unknown word %s\n",
+    printf("Error: line #%d starts with an unknown word %s\n",
 	   line_num, command);
     error = ERR_COMMAND_UNKNOWN;
   }
-  printf("spl: line_num: %d\n", line_num);
   return error;
 }
 
@@ -181,17 +152,20 @@ int second_handle_entry(char* line_buf, Symbol_node* symbol_head,
   remove_blank_from_token(&symbol);
   ptr = find_symbol(symbol_head, symbol);
   if (ptr == NULL) {
-    printf("second_handle_entry: Error: line#%d %s", line_num,
+    printf("Error: line#%d %s", line_num,
 	   error_message(ERR_UNKNOWN_ENTRY_SYMBOL));
     return ERR_UNKNOWN_ENTRY_SYMBOL;
   }
   if (get_symbols_is_external(ptr)) {
-    printf("second_handle_entry: Error: line#%d %s", line_num,
+    printf("Error: line#%d %s", line_num,
 	   error_message(ERR_EXTERNAL_ENTRY_SYMBOL));
     return ERR_EXTERNAL_ENTRY_SYMBOL;
   }
-  fprintf(fp_ent,"%s %d\n",symbol, get_symbols_address(ptr));
-  return 0;
+  if (!get_symbols_is_entry(ptr)) {
+    set_symbols_is_entry(ptr);
+    fprintf(fp_ent,"%s %d\n",symbol, get_symbols_address(ptr));
+  }
+  return NO_ERROR;
 }
 
 /* This function receives a memory word, the pointer to the .ob file
@@ -199,7 +173,6 @@ int second_handle_entry(char* line_buf, Symbol_node* symbol_head,
    file with the memory word, and apdates current_ob_line. */
 void memory_word_to_fp_ob(int memory_word, FILE* fp_ob,
 			  int* current_ob_line) {
-  print_memory_word(memory_word);
   /* The file is writen in 8 base. Before printing, we only keep the
      15 least-significant bits, and zero all the higher bits, by
      xomputing the bit-wise AND with 2^15-1, which has its 15 lower
@@ -232,7 +205,6 @@ int second_handle_instructive(int line_num, char* instruction,
   int memory_word3 = 0;
   int is_destination = 0;
   int both_reg = 0;
-  printf("\nshi: line_buf = [%s]\n",line_buf);
   arg1 = strsep(&line_buf, ",");
   arg2 = strsep(&line_buf, ",");
   
@@ -240,11 +212,9 @@ int second_handle_instructive(int line_num, char* instruction,
   remove_blank_from_token(&arg2);
   if (arg1!=NULL && !string_blank_or_empty(arg1)) {
     addr1 = extract_addr(arg1);
-    printf("shi:arg1 = [%s], address #1 type = %d\n",arg1,addr1);
   }
   if (arg2!=NULL && !string_blank_or_empty(arg2)) {
     addr2 = extract_addr(arg2);
-    printf("shi:arg2 = [%s], address #2 type = %d\n",arg2,addr2);
   }
   both_reg = ((addr1 == 2 || addr1 == 3)&&(addr2 == 2 || addr2 == 3));
   
@@ -366,8 +336,8 @@ int encode_arg(int *memory_word,char* arg,int addr, Symbol_node* symbol_head,
   case ADDR_DIRECT:
     ptr = find_symbol(symbol_head, arg);
     if (ptr == NULL) {
-      printf("encode_arg: Error: line#%d the symbol [%s] is %s",line_num,
-	     arg, error_message(ERR_UNKNOWN_SYMBOL));
+      printf("Error: line#%d the symbol [%s] is %s",line_num, arg,
+	     error_message(ERR_UNKNOWN_SYMBOL));
       error = ERR_UNKNOWN_ENTRY_SYMBOL;
       break;
     }
@@ -400,8 +370,7 @@ int encode_arg(int *memory_word,char* arg,int addr, Symbol_node* symbol_head,
 
   default:
     error = ERR_UNKNOWN;
-    printf("arg = %s, address type = %d\n", arg, addr);
-    printf("encode_arg: Error: line #%d %s\n", line_num,
+    printf("Error: line #%d %s\n", line_num,
 	   error_message(ERR_UNKNOWN));
   }
   return error;
@@ -425,7 +394,7 @@ void append_info_table_to_fp_ob(FILE* fp_ob, Info_node* info_head,
 }
 
 /* This function receives a memory word and printd it for debugging
-   porpouses.*/
+   porposes.*/
 void print_memory_word(int memory_word) {
   int i;
   printf("memory_word: %8d  ", memory_word);

@@ -11,6 +11,8 @@ void print_symbol_list(Symbol_node* head);
 Symbol_node* find_symbol(Symbol_node* head, char* symbol_name);
 int get_symbols_is_external(Symbol_node *ptr);
 int get_symbols_address(Symbol_node *ptr);
+int get_symbols_is_entry(Symbol_node *ptr);
+void set_symbols_is_entry(Symbol_node *ptr);
 void free_symbol_list(Symbol_node* head);
 
 #endif

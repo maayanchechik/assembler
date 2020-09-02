@@ -139,6 +139,37 @@ int index_not_blank(char* str) {
   return i;
 }
 
+/************************************************************************
+                              File utilities 
+ ************************************************************************/
+/* This function receives a filename prefix, a pointer to an output
+   filename, the suffix, the permition and a pointer to a file
+   pointer. The function updates the file_out to start with the prefix
+   and end with the suffix. It also opens file_out and makes fp the
+   pointer to that file. The function returns the appropriate error
+   code.*/
+int open_one_file(char* prefix, char** file_out, const char* suffix,
+		  const char* permission, FILE **fp) {
+  
+  /* First, build the specific filename from prefix and suffix */
+  (*file_out) = (char *) malloc(strlen(prefix) + strlen(suffix));
+  if (*file_out == 0) {
+    printf("Error: failed allocating memory fo file name %s\n", suffix);
+    return ERR_MALLOC_FAILED;
+  }
+  strcpy((*file_out), prefix);
+  strcat((*file_out), suffix);
+
+  (*fp) = fopen((*file_out), permission);
+  if ((*fp) == NULL) {
+    printf("Error: the file %s%s cannot be opened for %s.\n",
+	   prefix, suffix, permission);
+    return ERR_FILE;
+  }
+  return NO_ERROR;
+}
+
+
 
 /************************************************************************
                               Assembler utilities 
@@ -219,7 +250,7 @@ int symbol_is_illegal(char* symbol) {
       return ERR_SYMBOL_ILLEGAL_CHAR;
     }
   }
-  if (i>MAX_SYMBOL+1) {
+  if (i>MAX_SYMBOL) {
     return ERR_SYMBOL_TOO_LONG;
   }
   if ((!strcmp(symbol, "data")) || (!strcmp(symbol, "string")) ||
@@ -588,6 +619,7 @@ char* error_message(int error_code) {
     message = "there is no blank after the label.\n";
     break;
   case ERR_REPEATING_SYMBOL:
+  case ERR_REPEATING_EXTERNAL_SYMBOL:
     message = "this symbol is already defined.\n";
     break;
   case ERR_MALLOC_FAILED:

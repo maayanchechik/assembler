@@ -22,7 +22,7 @@ int get_info_value(Info_node* ptr) {
   return ptr->value;
 }
 
-/* This function receives a pointer to a symbol node and returns the
+/* This function receives a pointer to an info node and returns the
    "next" field of that node, which is a pointer to info_node. */
 Info_node* get_info_next(Info_node* ptr) {
   return ptr->next;

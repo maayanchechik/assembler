@@ -15,26 +15,38 @@ struct Symbol {
   int address;
   int is_before_directive;
   int is_external;
-  int entry;
+  int is_entry;
   struct Symbol *next;
 };
 
 /* This function receives a pointer to a symbol node and returns
    whether the given symbol is external. */
 int get_symbols_is_external(Symbol_node *ptr) {
-  return ptr->is_external;
+  return ptr -> is_external;
 }
 
 /* This function receives a pointer to a symbol node and returns the
    given symbol's address. */
 int get_symbols_address(Symbol_node *ptr) {
-  return ptr->address;
+  return ptr -> address;
+}
+
+/* This function receives a pointer to a symbol node and returns the
+   whether the given symbol is an entry. */
+int get_symbols_is_entry(Symbol_node *ptr) {
+  return ptr -> is_entry;
+}
+
+/* This function receives a pointer to a symbol node sets the is entry
+   flag as TRUE. */
+void set_symbols_is_entry(Symbol_node *ptr) {
+  ptr -> is_entry = TRUE;
 }
 
 /* This function creates a new symbol node. It initializes its fields
    using the passed input argmuments: (1) symbol name (2) address (3)
    before directive flag(4) external flag. The function initializes
-   the node "next" field to NULL. 
+   the entry flag to FALSE and the node "next" field to NULL. 
    If malloc fails, returns NULL, otherwise returns a pointer to teh
    new node. */
 Symbol_node* create_symbol(char* symbol_name, int address,
@@ -48,7 +60,7 @@ Symbol_node* create_symbol(char* symbol_name, int address,
   ptr -> address = address;
   ptr -> is_before_directive = is_before_directive;
   ptr -> is_external = is_external;
-  ptr -> entry = 0;
+  ptr -> is_entry = FALSE;
   length = strlen(symbol_name);
   ptr -> symbol_name = (char*) malloc(length);
   strcpy(ptr->symbol_name, symbol_name);
@@ -75,17 +87,26 @@ int append_symbol(Symbol_node** head, char* symbol_name, int address,
     *head = new_symbol;
     return NO_ERROR;
   }
+
   ptr = *head;
   while (ptr->next != NULL) {
     if (!strcmp((ptr->symbol_name), symbol_name)) {
       free(new_symbol);
-      return ERR_REPEATING_SYMBOL;
+      if(ptr->is_external){
+	return ERR_REPEATING_EXTERNAL_SYMBOL;
+      }else{
+	return ERR_REPEATING_SYMBOL;
+      }
     }
     ptr = ptr->next;
   }
   if (!strcmp((ptr->symbol_name),symbol_name)) {
     free(new_symbol);
-    return ERR_REPEATING_SYMBOL;
+    if(ptr->is_external){
+      return ERR_REPEATING_EXTERNAL_SYMBOL;
+    }else{
+      return ERR_REPEATING_SYMBOL;
+    }
   }
   ptr->next = new_symbol;
   return NO_ERROR;
@@ -109,7 +130,7 @@ void print_symbol_node(Symbol_node* ptr) {
   int address;
   char* is_before_directive;
   char* is_external;
-  char* entry;
+  char* is_entry;
   if (ptr == NULL) {
     printf("symbol is null\n");
     return;
@@ -126,10 +147,10 @@ void print_symbol_node(Symbol_node* ptr) {
     is_before_directive = "error";
   }
   is_external = ((ptr -> is_external)? "yes":"no");
-  entry = ((ptr -> entry)? "yes":"no");
+  is_entry = ((ptr -> is_entry)? "yes":"no");
   printf("symbol name: %s, address: %d, before directive: %s",
 	 symbol_name, address, is_before_directive);
-  printf(", is external: %s, is entry: %s\n", is_external, entry);
+  printf(", is external: %s, is entry: %s\n", is_external, is_entry);
 }
 
 /* This function recieves the head of the symbol table and prints the
